@@ -1,0 +1,8 @@
+## Interface: 40000
+## Title: xanAuraTimers
+## Notes: A small text based progress bar system for target/focus buffs and debuffs.
+## Author: Xruptor
+## Version: 1.0
+## SavedVariablesPerCharacter: XAT_DB
+
+xanAuraTimers.lua
