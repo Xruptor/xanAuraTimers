@@ -1,6 +1,7 @@
 
 local timers = {}
 local timersFocus = {}
+local timersPlayer = {}
 local MAX_TIMERS = 15
 local ICON_SIZE = 20
 local BAR_ADJUST = 25
@@ -9,12 +10,18 @@ local band = bit.band
 
 local targetGUID = 0
 local focusGUID = 0
+local playerGUID = 0
 local UnitAura = UnitAura
 local UnitIsUnit = UnitIsUnit
+local UnitGUID = UnitGUID
+local UnitName = UnitName
+local UnitIsEnemy = UnitIsEnemy
+local UnitIsFriend = UnitIsFriend
 
 local pointT = {
 	["target"] = "XAT_Anchor",
 	["focus"] = "XAT_FocusAnchor",
+	["player"] = "XAT_PlayerAnchor",
 }
 
 local f = CreateFrame("frame","xanAuraTimers",UIParent)
@@ -26,21 +33,24 @@ f:SetScript("OnEvent", function(self, event, ...) if self[event] then return sel
 	
 function f:PLAYER_LOGIN()
 
+	--load up the database
 	if not XAT_DB then XAT_DB = {} end
 	if XAT_DB.scale == nil then XAT_DB.scale = 1 end
 	if XAT_DB.grow == nil then XAT_DB.grow = false end
 	if XAT_DB.sort == nil then XAT_DB.sort = false end
 	if XAT_DB.auras == nil then XAT_DB.auras = false end
-
+	if XAT_DB.filterBuff == nil then XAT_DB.filterBuff = false end
+	if XAT_DB.filterDebuff == nil then XAT_DB.filterDebuff = false end
+	if XAT_DB.debuffs == nil then XAT_DB.debuffs = {} end
+	if XAT_DB.buffs == nil then XAT_DB.buffs = {} end
+	
+	--get player GUID
+	playerGUID = UnitGUID("player")
+	
 	--create our anchors
 	f:CreateAnchor("XAT_Anchor", UIParent, "xanAuraTimers: Target Anchor")
 	f:CreateAnchor("XAT_FocusAnchor", UIParent, "xanAuraTimers: Focus Anchor")
-	
-	--create our timers
-	for i=1,MAX_TIMERS do
-		timers[i] = f:CreateBuffTimers()
-		timersFocus[i] = f:CreateBuffTimers()
-	end
+	f:CreateAnchor("XAT_PlayerAnchor", UIParent, "xanAuraTimers: Player Anchor")
 	
 	f:UnregisterEvent("PLAYER_LOGIN")
 	f.PLAYER_LOGIN = nil
@@ -60,9 +70,11 @@ function f:PLAYER_LOGIN()
 				if XAT_Anchor:IsVisible() then
 					XAT_Anchor:Hide()
 					XAT_FocusAnchor:Hide()
+					XAT_PlayerAnchor:Hide()
 				else
 					XAT_Anchor:Show()
 					XAT_FocusAnchor:Show()
+					XAT_PlayerAnchor:Show()
 				end
 				return true
 			elseif c and c:lower() == "scale" then
@@ -71,8 +83,15 @@ function f:PLAYER_LOGIN()
 					if scalenum and scalenum ~= "" and tonumber(scalenum) then
 						XAT_DB.scale = tonumber(scalenum)
 						for i=1, MAX_TIMERS do
-							timers[i]:SetScale(tonumber(scalenum))
-							timersFocus[i]:SetScale(tonumber(scalenum))
+							if timers[i] then
+								timers[i]:SetScale(tonumber(scalenum))
+							end
+							if timersFocus[i] then
+								timersFocus[i]:SetScale(tonumber(scalenum))
+							end
+						end
+						for i=1, #timersPlayer do
+							timersPlayer[i]:SetScale(tonumber(scalenum))
 						end
 						DEFAULT_CHAT_FRAME:AddMessage("xanAuraTimers: Scale has been set to ["..tonumber(scalenum).."]")
 						return true
@@ -171,7 +190,9 @@ function f:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, srcGUID, src
 			f:ClearAuras(timersFocus)
 			focusGUID = 0
 		end
-		
+		if dstGUID == playerGUID then
+			f:ClearAuras(timersPlayer)
+		end
 	elseif eventSwitch[eventType] and band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MINE) ~= 0 then
 		--process the spells based on GUID
 		if dstGUID == targetGUID then
@@ -301,7 +322,7 @@ local TimerOnUpdate = function(self, time)
 	
 end
 
-function f:CreateBuffTimers()
+function f:CreateAuraTimers()
 	
     local Frm = CreateFrame("Frame", nil, UIParent)
 	
@@ -360,12 +381,12 @@ function f:ProcessAuras(sT, sdTimer)
 	else
 		filter = 'HELPFUL|PLAYER'
 	end
-	
+
 	for i=1, MAX_TIMERS do
-	
 		local name, _, icon, count, _, duration, expTime, unitCaster, _, _, spellId = UnitAura(sT, i, filter)
+		if not name then break end 
+
 		local passChk = false
-		
 		--only allow non-cancel auras if the user allowed it
 		if XAT_DB.auras then
 			--auras are on so basically were allowing everything
@@ -377,16 +398,19 @@ function f:ProcessAuras(sT, sdTimer)
 		
 		--UnitIsUnit is used JUST IN CASE (you never know lol)
 		if passChk and name and unitCaster and UnitIsUnit(unitCaster, "player") then
+			--get the next timer slot we can use
+			countBuffs = countBuffs + 1
+			if not sdTimer[countBuffs] then sdTimer[countBuffs] = f:CreateAuraTimers() end --create the timer if it doesn't exist
 			if not duration or duration <= 0 then expTime = 0 end --just in case for non-cancel auras
-			sdTimer[i].id = sT
-			sdTimer[i].spellName = name
-			sdTimer[i].spellId = spellId
-			sdTimer[i].iconTex = icon
-			sdTimer[i].icon:SetTexture(icon)
-			sdTimer[i].startTime = (expTime - duration) or 0
-			sdTimer[i].durationTime = duration or 0
-			sdTimer[i].endTime = expTime or 0
-			sdTimer[i].stacks = count or 0
+			sdTimer[countBuffs].id = sT
+			sdTimer[countBuffs].spellName = name
+			sdTimer[countBuffs].spellId = spellId
+			sdTimer[countBuffs].iconTex = icon
+			sdTimer[countBuffs].icon:SetTexture(icon)
+			sdTimer[countBuffs].startTime = (expTime - duration) or 0
+			sdTimer[countBuffs].durationTime = duration or 0
+			sdTimer[countBuffs].endTime = expTime or 0
+			sdTimer[countBuffs].stacks = count or 0
 				--this has to check for duration=0 because we cannot divide by zero
 				local tmpBL
 				if duration > 0 then
@@ -395,11 +419,14 @@ function f:ProcessAuras(sT, sdTimer)
 					tmpBL = string.len(BAR_TEXT)
 				end
 				if tmpBL > string.len(BAR_TEXT) then tmpBL = string.len(BAR_TEXT) end
-			sdTimer[i].tmpBL = tmpBL
-			sdTimer[i].active = true
-			if not sdTimer[i]:IsVisible() then sdTimer[i]:Show() end
-			countBuffs = countBuffs + 1
-		else
+			sdTimer[countBuffs].tmpBL = tmpBL
+			sdTimer[countBuffs].active = true
+			if not sdTimer[countBuffs]:IsVisible() then sdTimer[countBuffs]:Show() end
+		end
+	end
+	--clear everything else
+	for i=(countBuffs+1), #sdTimer do
+		if sdTimer[i] then
 			sdTimer[i].active = false
 			if sdTimer[i]:IsVisible() then sdTimer[i]:Hide() end
 		end
@@ -412,7 +439,7 @@ end
 function f:ClearAuras(sdTimer)
 	local adj = 0
 
-	for i=1, MAX_TIMERS do
+	for i=1, #sdTimer do
 		if sdTimer[i].active then
 			sdTimer[i].active = false
 		end
@@ -448,6 +475,8 @@ function f:ArrangeAuras(throttle, id)
 		sdTimer = timers
 	elseif id == "focus" then
 		sdTimer = timersFocus
+	elseif id == "player" then
+		sdTimer = timersPlayer
 	else
 		return
 	end
@@ -579,7 +608,7 @@ function f:RestoreLayout(frame)
 
 end
 
-function f:getBarColor(dur, expR)
+function f:getBarColor(dur, expR, auraType)
 	if dur <= 0 then
 		--this will make the bar green
 		dur = 1
