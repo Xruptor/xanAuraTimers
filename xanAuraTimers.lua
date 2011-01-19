@@ -371,7 +371,7 @@ end
 
 function f:ProcessAuras(sT, sdTimer)
 	--only process for as many timers as we are using
-	local countBuffs = 0
+	local slotNum = 0
 	local filter = ''
 	
 	--if not UnitExists(sT) then return end
@@ -399,18 +399,18 @@ function f:ProcessAuras(sT, sdTimer)
 		--UnitIsUnit is used JUST IN CASE (you never know lol)
 		if passChk and name and unitCaster and UnitIsUnit(unitCaster, "player") then
 			--get the next timer slot we can use
-			countBuffs = countBuffs + 1
-			if not sdTimer[countBuffs] then sdTimer[countBuffs] = f:CreateAuraTimers() end --create the timer if it doesn't exist
+			slotNum = slotNum + 1
+			if not sdTimer[slotNum] then sdTimer[slotNum] = f:CreateAuraTimers() end --create the timer if it doesn't exist
 			if not duration or duration <= 0 then expTime = 0 end --just in case for non-cancel auras
-			sdTimer[countBuffs].id = sT
-			sdTimer[countBuffs].spellName = name
-			sdTimer[countBuffs].spellId = spellId
-			sdTimer[countBuffs].iconTex = icon
-			sdTimer[countBuffs].icon:SetTexture(icon)
-			sdTimer[countBuffs].startTime = (expTime - duration) or 0
-			sdTimer[countBuffs].durationTime = duration or 0
-			sdTimer[countBuffs].endTime = expTime or 0
-			sdTimer[countBuffs].stacks = count or 0
+			sdTimer[slotNum].id = sT
+			sdTimer[slotNum].spellName = name
+			sdTimer[slotNum].spellId = spellId
+			sdTimer[slotNum].iconTex = icon
+			sdTimer[slotNum].icon:SetTexture(icon)
+			sdTimer[slotNum].startTime = (expTime - duration) or 0
+			sdTimer[slotNum].durationTime = duration or 0
+			sdTimer[slotNum].endTime = expTime or 0
+			sdTimer[slotNum].stacks = count or 0
 				--this has to check for duration=0 because we cannot divide by zero
 				local tmpBL
 				if duration > 0 then
@@ -419,19 +419,19 @@ function f:ProcessAuras(sT, sdTimer)
 					tmpBL = string.len(BAR_TEXT)
 				end
 				if tmpBL > string.len(BAR_TEXT) then tmpBL = string.len(BAR_TEXT) end
-			sdTimer[countBuffs].tmpBL = tmpBL
-			sdTimer[countBuffs].active = true
-			if not sdTimer[countBuffs]:IsVisible() then sdTimer[countBuffs]:Show() end
+			sdTimer[slotNum].tmpBL = tmpBL
+			sdTimer[slotNum].active = true
+			if not sdTimer[slotNum]:IsVisible() then sdTimer[slotNum]:Show() end
 		end
 	end
 	--clear everything else
-	for i=(countBuffs+1), #sdTimer do
+	for i=(slotNum+1), #sdTimer do
 		if sdTimer[i] then
 			sdTimer[i].active = false
 			if sdTimer[i]:IsVisible() then sdTimer[i]:Hide() end
 		end
 	end
-	if countBuffs > 0 then
+	if slotNum > 0 then
 		f:ArrangeAuras(false, sT)
 	end
 end
