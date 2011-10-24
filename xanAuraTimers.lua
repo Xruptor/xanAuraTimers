@@ -174,6 +174,11 @@ local eventSwitch = {
 	["SPELL_AURA_REFRESH"] = true,
 	["SPELL_AURA_APPLIED_DOSE"] = true,
 	["SPELL_AURA_APPLIED_REMOVED_DOSE"] = true,
+	["SPELL_AURA_REMOVED_DOSE"] = true,
+	["SPELL_AURA_BROKEN"] = true,
+	["SPELL_AURA_BROKEN_SPELL"] = true,
+	["ENCHANT_REMOVED"] = true,
+	["ENCHANT_APPLIED"] = true,
 }
 
 function f:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags, spellID, spellName, spellSchool, auraType, amount)
@@ -193,6 +198,7 @@ function f:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, srcGUID, src
 		if dstGUID == playerGUID then
 			f:ClearAuras(timersPlayer)
 		end
+		
 	elseif eventSwitch[eventType] and band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MINE) ~= 0 then
 		--process the spells based on GUID
 		if dstGUID == targetGUID then
@@ -201,7 +207,12 @@ function f:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, srcGUID, src
 		if dstGUID == focusGUID then
 			f:ProcessAuras("focus", timersFocus)
 		end
+	
+	elseif eventSwitch[eventType] and dstGUID == playerGUID then
+		--if anything if we are the destination scan our auras and temp enchants
+		
     end
+	
 end
 
 ----------------------
